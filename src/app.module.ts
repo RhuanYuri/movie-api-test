@@ -7,6 +7,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { databaseConfig } from './config/database.config';
 import { UsersModule } from './users/users.module';
 import { MediaModule } from './media/media.module';
+import { FavoriteModule } from './favorite/favorite.module';
 dotenvConfig();
 
 @Module({
@@ -17,6 +18,7 @@ dotenvConfig();
     TypeOrmModule.forRoot(databaseConfig()),
     UsersModule,
     MediaModule,
+    FavoriteModule,
   ],
   controllers: [AppController],
   providers: [AppService],
