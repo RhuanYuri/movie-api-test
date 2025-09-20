@@ -5,6 +5,7 @@ import { ConfigModule } from '@nestjs/config';
 import { config as dotenvConfig } from 'dotenv';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { databaseConfig } from './config/database.config';
+import { UsersModule } from './users/users.module';
 dotenvConfig();
 
 @Module({
@@ -13,6 +14,7 @@ dotenvConfig();
       isGlobal: true,
     }),
     TypeOrmModule.forRoot(databaseConfig()),
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
