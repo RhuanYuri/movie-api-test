@@ -1,14 +1,10 @@
-FROM node:20-alpine AS build
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
-
 FROM node:20-alpine
+RUN npm install -g pnpm
 WORKDIR /app
-COPY package*.json ./
-RUN npm install --only=production --omit=dev
-COPY --from=build /app/dist ./dist
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install
+COPY . .
+RUN pnpm run build
+EXPOSE 3000
 
-CMD [ "node", "dist/main" ]
+CMD ["node", "dist/main"]
