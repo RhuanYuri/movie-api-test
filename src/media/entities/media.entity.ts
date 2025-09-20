@@ -1,7 +1,9 @@
+import { Favorite } from 'src/favorite/entities/favorite.entity';
 import {
   Column,
   CreateDateColumn,
   Entity,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -35,4 +37,7 @@ export class Media {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @OneToMany(() => Favorite, (favorite) => favorite.media)
+  favorites: Favorite[];
 }
