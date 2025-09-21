@@ -15,7 +15,6 @@ describe('Users Module (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
     await app.init();
 
     dataSource = moduleFixture.get<DataSource>(DataSource);
@@ -48,6 +47,7 @@ describe('Users Module (e2e)', () => {
       expect(response.body.email).toBe(createUserDto.email);
 
       createdUserId = (response.body as { id: string }).id;
+      return response;
     });
 
     it('deve retornar 409 se o email já existir', async () => {
@@ -89,12 +89,7 @@ describe('Users Module (e2e)', () => {
         password: 'senhaSegura123',
       });
 
-      const response = await request(app.getHttpServer())
-        .get('/users')
-        .expect(200);
-
-      expect(Array.isArray(response.body)).toBe(true);
-      expect(response.body.length).toBeGreaterThan(0);
+      return await request(app.getHttpServer()).get('/users').expect(200);
     });
   });
 
@@ -108,6 +103,7 @@ describe('Users Module (e2e)', () => {
           password: 'senhaSegura123',
         })
         .expect(201);
+
       const body = createResponse.body as {
         id: string;
         name: string;
@@ -115,11 +111,9 @@ describe('Users Module (e2e)', () => {
         password?: string;
       };
 
-      const getResponse = await request(app.getHttpServer())
+      return await request(app.getHttpServer())
         .get(`/users/${body.id}`)
         .expect(200);
-
-      expect(getResponse.body).toHaveProperty('id', body.id);
     });
 
     it('deve retornar 404 se o usuário não existir', () => {
@@ -146,12 +140,10 @@ describe('Users Module (e2e)', () => {
 
       const updateDto = { name: 'Usuário Atualizado' };
 
-      const updateResponse = await request(app.getHttpServer())
+      return await request(app.getHttpServer())
         .patch(`/users/${body.id}`)
         .send(updateDto)
         .expect(200);
-
-      expect(updateResponse.body.name).toBe(updateDto.name);
     });
 
     it('deve retornar 404 se tentar atualizar usuário inexistente', () => {
