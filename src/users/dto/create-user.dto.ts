@@ -32,36 +32,6 @@ export class CreateUserDto {
   password: string;
 }
 
-export class UpdateUserDto {
-  @ApiProperty({
-    description: 'Nome completo do usuário',
-    example: 'Maria Silva',
-    required: false,
-  })
-  @IsString()
-  @IsOptional()
-  name?: string;
-
-  @ApiProperty({
-    description: 'E-mail único do usuário',
-    example: 'maria.silva@email.com',
-    required: false,
-  })
-  @IsEmail()
-  @IsOptional()
-  email?: string;
-
-  @ApiProperty({
-    description: 'Senha do usuário (mínimo 6 caracteres)',
-    example: 'novaSenha123',
-    required: false,
-  })
-  @IsString()
-  @MinLength(6)
-  @IsOptional()
-  password?: string;
-}
-
 export class UserResponseDto {
   @ApiProperty({
     description: 'Identificador único do usuário (UUID)',
