@@ -1,4 +1,4 @@
-import { Favorite } from 'src/favorite/entities/favorite.entity';
+import { Favorite } from '../../favorite/entities/favorite.entity';
 import {
   Column,
   CreateDateColumn,

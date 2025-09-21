@@ -1,5 +1,5 @@
-import { Media } from 'src/media/entities/media.entity';
-import { User } from 'src/users/entities/user.entity';
+import { Media } from '../../media/entities/media.entity';
+import { User } from '../../users/entities/user.entity';
 import {
   Column,
   Entity,
