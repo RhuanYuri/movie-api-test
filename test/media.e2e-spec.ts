@@ -7,6 +7,7 @@ import {
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { DataSource } from 'typeorm';
+import { CreateMediaDto } from 'src/media/dto/create-media.dto';
 
 describe('Media Module (e2e)', () => {
   let app: INestApplication;
@@ -18,6 +19,7 @@ describe('Media Module (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -42,7 +44,7 @@ describe('Media Module (e2e)', () => {
 
   describe('/media (POST)', () => {
     it('deve criar uma mídia com sucesso (201)', async () => {
-      const dto = {
+      const dto: CreateMediaDto = {
         title: 'Filme Teste',
         description: 'Descrição do filme teste',
         type: 'movie',
@@ -50,14 +52,18 @@ describe('Media Module (e2e)', () => {
         genre: 'action',
       };
 
-      return await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .post('/media')
         .send(dto)
         .expect(201);
+
+      expect(response.body).toHaveProperty('id');
+      expect(response.body.title).toBe(dto.title);
     });
 
     it('deve retornar 400 se os dados forem inválidos', () => {
       const invalidDto = { title: '', type: 'invalid-type' };
+
       return request(app.getHttpServer())
         .post('/media')
         .send(invalidDto)
@@ -66,7 +72,7 @@ describe('Media Module (e2e)', () => {
   });
 
   describe('/media (GET)', () => {
-    it('deve retornar lista de mídias (200)', async () => {
+    it('deve retornar uma lista de mídias (200)', async () => {
       await request(app.getHttpServer()).post('/media').send({
         title: 'Filme List',
         type: 'movie',
@@ -87,18 +93,21 @@ describe('Media Module (e2e)', () => {
           type: 'series',
           releaseYear: 2023,
           genre: 'comedy',
-        })
-        .expect(201);
-
+        });
       const body = createResponse.body as { id: string };
 
       return await request(app.getHttpServer())
         .get(`/media/${body.id}`)
         .expect(200);
+
     });
 
     it('deve retornar 404 se a mídia não existir', () => {
-      return request(app.getHttpServer()).get('/media/999').expect(404);
+      const nonExistentId = '00000000-0000-0000-0000-000000000000';
+
+      return request(app.getHttpServer())
+        .get(`/media/${nonExistentId}`)
+        .expect(404);
     });
   });
 
@@ -111,22 +120,24 @@ describe('Media Module (e2e)', () => {
           type: 'movie',
           releaseYear: 2022,
           genre: 'thriller',
-        })
-        .expect(201);
-
+        });
       const body = createResponse.body as { id: string };
-
       const updateDto = { title: 'Filme Atualizado' };
 
-      return await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .patch(`/media/${body.id}`)
         .send(updateDto)
         .expect(200);
+
+      expect(response.body.id).toBe(body.id);
+      expect(response.body.title).toBe(updateDto.title);
     });
 
     it('deve retornar 404 se tentar atualizar mídia inexistente', () => {
+      const nonExistentId = '00000000-0000-0000-0000-000000000000';
+
       return request(app.getHttpServer())
-        .patch('/media/999')
+        .patch(`/media/${nonExistentId}`)
         .send({ title: 'Inexistente' })
         .expect(404);
     });
@@ -141,9 +152,7 @@ describe('Media Module (e2e)', () => {
           type: 'movie',
           releaseYear: 2021,
           genre: 'horror',
-        })
-        .expect(201);
-
+        });
       const body = createResponse.body as { id: string };
 
       await request(app.getHttpServer())
@@ -154,7 +163,11 @@ describe('Media Module (e2e)', () => {
     });
 
     it('deve retornar 404 ao tentar remover mídia inexistente', () => {
-      return request(app.getHttpServer()).delete('/media/999').expect(404);
+      const nonExistentId = '00000000-0000-0000-0000-000000000000';
+
+      return request(app.getHttpServer())
+        .delete(`/media/${nonExistentId}`)
+        .expect(404);
     });
   });
 });
