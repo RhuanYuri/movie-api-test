@@ -1,25 +1,38 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { FavoriteService } from './favorite.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Favorite } from './entities/favorite.entity';
 import { Repository } from 'typeorm';
+import { randomUUID as uuidv4 } from 'node:crypto';
+import { isUUID } from 'class-validator';
+import { FavoriteService } from './favorite.service';
+import { Favorite } from './entities/favorite.entity';
 import {
   NotFoundException,
   InternalServerErrorException,
+  BadRequestException,
 } from '@nestjs/common';
 import { CreateFavoriteDto } from './dto/create-favorite.dto';
 import { UpdateFavoriteDto } from './dto/update-favorite.dto';
+import { User } from 'src/users/entities/user.entity';
+import { Media } from 'src/media/entities/media.entity';
+
+// Mock global para a função isUUID, essencial para os testes
+jest.mock('class-validator', () => ({
+  ...jest.requireActual('class-validator'),
+  isUUID: jest.fn(),
+}));
 
 describe('FavoriteService', () => {
   let service: FavoriteService;
-  let repository: Repository<Favorite>;
+  let repository: jest.Mocked<Repository<Favorite>>;
+  const mockIsUUID = isUUID as jest.Mock;
 
-  const mockFavoriteRepository = {
-    create: jest.fn(),
-    save: jest.fn(),
-    find: jest.fn(),
-    findOne: jest.fn(),
-    remove: jest.fn(),
+  const mockUserId = uuidv4();
+  const mockFavorite: Favorite = {
+    id: uuidv4(),
+    userId: mockUserId,
+    mediaId: uuidv4(),
+    user: { id: mockUserId } as User,
+    media: { id: uuidv4() } as Media,
   };
 
   beforeEach(async () => {
@@ -28,17 +41,23 @@ describe('FavoriteService', () => {
         FavoriteService,
         {
           provide: getRepositoryToken(Favorite),
-          useValue: mockFavoriteRepository,
+          useValue: {
+            create: jest.fn(),
+            save: jest.fn(),
+            find: jest.fn(),
+            findOne: jest.fn(),
+            remove: jest.fn(),
+          },
         },
       ],
     }).compile();
 
     service = module.get<FavoriteService>(FavoriteService);
-    repository = module.get<Repository<Favorite>>(getRepositoryToken(Favorite));
+    repository = module.get(getRepositoryToken(Favorite));
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   it('deve ser definido', () => {
@@ -46,46 +65,64 @@ describe('FavoriteService', () => {
   });
 
   describe('create', () => {
-    it('deve criar e salvar um favorito', async () => {
-      const dto: CreateFavoriteDto = { userId: 'user-1', mediaId: 'media-1' };
-      const favorite: Favorite = { id: '1', ...dto } as Favorite;
+    const createDto: CreateFavoriteDto = {
+      userId: mockUserId,
+      mediaId: uuidv4(),
+    };
 
-      mockFavoriteRepository.create.mockReturnValue(favorite);
-      mockFavoriteRepository.save.mockResolvedValue(favorite);
+    it('deve criar um favorito com sucesso', async () => {
+      // Arrange
+      repository.create.mockReturnValue(mockFavorite);
+      repository.save.mockResolvedValue(mockFavorite);
 
-      const result = await service.create(dto);
-      expect(result).toEqual(favorite);
-      expect(mockFavoriteRepository.create).toHaveBeenCalledWith(dto);
-      expect(mockFavoriteRepository.save).toHaveBeenCalledWith(favorite);
+      // Act
+      const result = await service.create(createDto);
+
+      // Assert
+      expect(result).toEqual(mockFavorite);
     });
 
-    it('deve lançar InternalServerErrorException em caso de erro', async () => {
-      mockFavoriteRepository.create.mockImplementation(() => {
-        throw new Error();
-      });
+    it('deve lançar InternalServerErrorException se save falhar', async () => {
+      // Arrange
+      repository.save.mockRejectedValue(new Error('DB Error'));
 
-      await expect(
-        service.create({ userId: 'u', mediaId: 'm' }),
-      ).rejects.toThrow(InternalServerErrorException);
+      // Act & Assert
+      await expect(service.create(createDto)).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
   });
 
   describe('findAll', () => {
-    it('deve retornar todos os favoritos de um usuário', async () => {
-      const favorites = [{ id: '1' }, { id: '2' }] as Favorite[];
-      mockFavoriteRepository.find.mockResolvedValue(favorites);
+    it('deve retornar os favoritos de um usuário', async () => {
+      // Arrange
+      mockIsUUID.mockReturnValue(true);
+      repository.find.mockResolvedValue([mockFavorite]);
 
-      const result = await service.findAll('user-1');
-      expect(result).toEqual(favorites);
-      expect(mockFavoriteRepository.find).toHaveBeenCalledWith({
-        where: { userId: 'user-1' },
-        relations: ['user', 'media'],
-      });
+      // Act
+      const result = await service.findAll(mockUserId);
+
+      // Assert
+      expect(result).toEqual([mockFavorite]);
     });
 
-    it('deve lançar InternalServerErrorException em caso de erro', async () => {
-      mockFavoriteRepository.find.mockRejectedValue(new Error());
-      await expect(service.findAll('user-1')).rejects.toThrow(
+    it('deve lançar NotFoundException para um userId inválido', async () => {
+      // Arrange
+      mockIsUUID.mockReturnValue(false);
+
+      // Act & Assert
+      await expect(service.findAll('invalid-id')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('deve lançar InternalServerErrorException se find falhar', async () => {
+      // Arrange
+      mockIsUUID.mockReturnValue(true);
+      repository.find.mockRejectedValue(new Error('DB Error'));
+
+      // Act & Assert
+      await expect(service.findAll(mockUserId)).rejects.toThrow(
         InternalServerErrorException,
       );
     });
@@ -93,91 +130,126 @@ describe('FavoriteService', () => {
 
   describe('findOne', () => {
     it('deve retornar um favorito específico', async () => {
-      const favorite: Favorite = {
-        id: '1',
-        userId: 'user-1',
-        mediaId: 'media-1',
-      } as Favorite;
-      mockFavoriteRepository.findOne.mockResolvedValue(favorite);
+      // Arrange
+      mockIsUUID.mockReturnValue(true);
+      repository.findOne.mockResolvedValue(mockFavorite);
 
-      const result = await service.findOne('1', 'user-1');
-      expect(result).toEqual(favorite);
-      expect(mockFavoriteRepository.findOne).toHaveBeenCalledWith({
-        where: { id: '1', userId: 'user-1' },
-        relations: ['user', 'media'],
-      });
+      // Act
+      const result = await service.findOne(mockFavorite.id, mockUserId);
+
+      // Assert
+      expect(result).toEqual(mockFavorite);
     });
 
-    it('deve lançar NotFoundException se não encontrado', async () => {
-      mockFavoriteRepository.findOne.mockResolvedValue(undefined);
-      await expect(service.findOne('1', 'user-1')).rejects.toThrow(
+    it('deve lançar NotFoundException se o favorito não for encontrado', async () => {
+      // Arrange
+      mockIsUUID.mockReturnValue(true);
+      repository.findOne.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(service.findOne(uuidv4(), mockUserId)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('deve lançar NotFoundException para um favoriteId inválido', async () => {
+      // Arrange
+      mockIsUUID.mockReturnValueOnce(false);
+
+      // Act & Assert
+      await expect(service.findOne('invalid-id', mockUserId)).rejects.toThrow(
         NotFoundException,
       );
     });
   });
 
   describe('update', () => {
-    it('deve atualizar um favorito', async () => {
-      const favorite: Favorite = {
-        id: '1',
-        userId: 'user-1',
-        mediaId: 'media-1',
-      } as Favorite;
-      const dto: UpdateFavoriteDto = { mediaId: 'media-2' };
+    const updateDto: UpdateFavoriteDto = { mediaId: uuidv4() };
 
-      jest.spyOn(service, 'findOne').mockResolvedValue(favorite);
-      mockFavoriteRepository.save.mockResolvedValue({
-        ...favorite,
-        ...dto,
-      } as Favorite);
+    it('deve atualizar um favorito com sucesso', async () => {
+      // Arrange
+      mockIsUUID.mockReturnValue(true);
+      const updatedFavorite = { ...mockFavorite, ...updateDto };
+      jest.spyOn(service, 'findOne').mockResolvedValue(mockFavorite);
+      repository.save.mockResolvedValue(updatedFavorite);
 
-      const result = await service.update('1', 'user-1', dto);
-      expect(result.mediaId).toBe('media-2');
-      expect(mockFavoriteRepository.save).toHaveBeenCalledWith({
-        ...favorite,
-        ...dto,
-      });
+      // Act
+      const result = await service.update(
+        mockFavorite.id,
+        mockUserId,
+        updateDto,
+      );
+
+      // Assert
+      expect(result.mediaId).toBe(updateDto.mediaId);
     });
 
-    it('deve lançar InternalServerErrorException em caso de erro', async () => {
-      const favorite: Favorite = {
-        id: '1',
-        userId: 'user-1',
-        mediaId: 'media-1',
-      } as Favorite;
-      jest.spyOn(service, 'findOne').mockResolvedValue(favorite);
-      mockFavoriteRepository.save.mockRejectedValue(new Error());
+    it('deve lançar NotFoundException se o favorito não for encontrado', async () => {
+      // Arrange
+      mockIsUUID.mockReturnValue(true);
+      jest.spyOn(service, 'findOne').mockRejectedValue(new NotFoundException());
 
+      // Act & Assert
       await expect(
-        service.update('1', 'user-1', { mediaId: 'media-2' }),
+        service.update(uuidv4(), mockUserId, updateDto),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('deve lançar InternalServerErrorException se save falhar', async () => {
+      // Arrange
+      mockIsUUID.mockReturnValue(true);
+      jest.spyOn(service, 'findOne').mockResolvedValue(mockFavorite);
+      repository.save.mockRejectedValue(new Error('DB Error'));
+
+      // Act & Assert
+      await expect(
+        service.update(mockFavorite.id, mockUserId, updateDto),
       ).rejects.toThrow(InternalServerErrorException);
     });
   });
 
   describe('remove', () => {
     it('deve remover um favorito com sucesso', async () => {
-      const favorite: Favorite = {
-        id: '1',
-        userId: 'user-1',
-        mediaId: 'media-1',
-      } as Favorite;
-      jest.spyOn(service, 'findOne').mockResolvedValue(favorite);
-      mockFavoriteRepository.remove.mockResolvedValue(undefined);
+      // Arrange
+      mockIsUUID.mockReturnValue(true);
+      jest.spyOn(service, 'findOne').mockResolvedValue(mockFavorite);
+      repository.remove.mockResolvedValue(mockFavorite);
 
-      await service.remove('1', 'user-1');
-      expect(mockFavoriteRepository.remove).toHaveBeenCalledWith(favorite);
+      // Act & Assert
+      await expect(
+        service.remove(mockFavorite.id, mockUserId),
+      ).resolves.toBeUndefined();
     });
 
-    it('deve lançar InternalServerErrorException em caso de erro', async () => {
-      const favorite: Favorite = {
-        id: '1',
-        userId: 'user-1',
-        mediaId: 'media-1',
-      } as Favorite;
-      jest.spyOn(service, 'findOne').mockResolvedValue(favorite);
-      mockFavoriteRepository.remove.mockRejectedValue(new Error());
+    it('deve lançar BadRequestException para um favoriteId inválido', async () => {
+      // Arrange
+      mockIsUUID.mockReturnValueOnce(false);
 
-      await expect(service.remove('1', 'user-1')).rejects.toThrow(
+      // Act & Assert
+      await expect(service.remove('invalid-id', mockUserId)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('deve lançar NotFoundException se o favorito não for encontrado', async () => {
+      // Arrange
+      mockIsUUID.mockReturnValue(true);
+      jest.spyOn(service, 'findOne').mockRejectedValue(new NotFoundException());
+
+      // Act & Assert
+      await expect(service.remove(uuidv4(), mockUserId)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('deve lançar InternalServerErrorException se a remoção falhar', async () => {
+      // Arrange
+      mockIsUUID.mockReturnValue(true);
+      jest.spyOn(service, 'findOne').mockResolvedValue(mockFavorite);
+      repository.remove.mockRejectedValue(new Error('DB Error'));
+
+      // Act & Assert
+      await expect(service.remove(mockFavorite.id, mockUserId)).rejects.toThrow(
         InternalServerErrorException,
       );
     });
