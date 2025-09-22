@@ -30,19 +30,25 @@ export class UsersService {
     return this.userRepository.save(user);
   }
 
-  async findAll(): Promise<User[]> {
-    return await this.userRepository.find();
+  async findAll(): Promise<Omit<User, 'password'>[]> {
+    const users = await this.userRepository.find();
+
+    return users.map(({ password, ...user }) => user);
   }
 
-  async findOne(id: string): Promise<User> {
+  async findOne(id: string): Promise<Omit<User, 'password'>> {
     if (!isUUID(id)) {
       throw new NotFoundException(`Usuário com ID ${id} não encontrado`);
     }
     const user = await this.userRepository.findOne({ where: { id } });
+
     if (!user) {
       throw new NotFoundException(`Usuário com ID ${id} não encontrado`);
     }
-    return user;
+
+    const { password, ...result } = user;
+
+    return result;
   }
 
   async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
