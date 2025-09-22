@@ -12,9 +12,9 @@ import { randomUUID as uuidv4 } from 'node:crypto';
 
 describe('FavoriteController', () => {
   let controller: FavoriteController;
-  let service: jest.Mocked<FavoriteService>; // Tipagem para ter autocomplete dos mocks
+  let service: jest.Mocked<FavoriteService>; 
 
-  // Mock completo do serviço
+  
   const mockFavoriteService = {
     create: jest.fn(),
     findAll: jest.fn(),
@@ -48,10 +48,10 @@ describe('FavoriteController', () => {
     expect(controller).toBeDefined();
   });
 
-  // --- Bloco de Testes para o Método `create` (AJUSTADO) ---
+  
   describe('create', () => {
     it('deve chamar o serviço com os parâmetros corretos e criar um favorito', async () => {
-      // Arrange: DTO agora contém apenas o mediaId
+      
       const createDto: CreateFavoriteDto = { mediaId: 'media-1' };
       const userId = 'user-1';
       const expectedFavorite: Favorite = {
@@ -62,12 +62,12 @@ describe('FavoriteController', () => {
 
       service.create.mockResolvedValue(expectedFavorite);
 
-      // Act: Chama o método do controller
+      
       const result = await controller.create(userId, createDto);
 
-      // Assert: Verifica se o serviço foi chamado corretamente e o resultado está certo
+      
       expect(result).toEqual(expectedFavorite);
-      // ➡️ A asserção mais importante: verifica se o serviço foi chamado com dois argumentos separados
+      
       expect(service.create).toHaveBeenCalledWith(createDto, userId);
     });
 
@@ -82,7 +82,7 @@ describe('FavoriteController', () => {
     });
   });
 
-  // --- O restante dos testes já estava correto ---
+  
   describe('findAll', () => {
     it('deve retornar todos os favoritos de um usuário', async () => {
       const favorites: Favorite[] = [{ id: '1' } as Favorite];
@@ -130,7 +130,7 @@ describe('FavoriteController', () => {
 
   describe('remove', () => {
     it('deve remover um favorito com sucesso', async () => {
-      service.remove.mockResolvedValue(undefined); // Métodos void resolvem para undefined
+      service.remove.mockResolvedValue(undefined); 
 
       await expect(controller.remove('user-1', '1')).resolves.toBeUndefined();
       expect(service.remove).toHaveBeenCalledWith('1', 'user-1');

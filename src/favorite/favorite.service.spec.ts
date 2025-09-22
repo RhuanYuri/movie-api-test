@@ -14,7 +14,7 @@ import { UpdateFavoriteDto } from './dto/update-favorite.dto';
 import { User } from 'src/users/entities/user.entity';
 import { Media } from 'src/media/entities/media.entity';
 
-// Mock da função isUUID para controlar seu retorno nos testes
+
 jest.mock('class-validator', () => ({
   ...jest.requireActual('class-validator'),
   isUUID: jest.fn(),
@@ -57,48 +57,48 @@ describe('FavoriteService', () => {
   });
 
   afterEach(() => {
-    jest.restoreAllMocks(); // Limpa os mocks após cada teste
+    jest.restoreAllMocks(); 
   });
 
   it('deve ser definido', () => {
     expect(service).toBeDefined();
   });
 
-  // --- Bloco de Testes para o Método `create` (AJUSTADO) ---
+  
   describe('create', () => {
-    // DTO agora contém apenas o mediaId
+    
     const createDto: CreateFavoriteDto = {
       mediaId: mockMediaId,
     };
 
     it('deve criar um favorito com sucesso', async () => {
-      // Arrange: Prepara os dados e mocks
+      
       const favoriteData = { ...createDto, userId: mockUserId };
       repository.create.mockReturnValue(mockFavorite);
       repository.save.mockResolvedValue(mockFavorite);
 
-      // Act: Chama o método a ser testado com os argumentos corretos
+      
       const result = await service.create(createDto, mockUserId);
 
-      // Assert: Verifica se o comportamento foi o esperado
+      
       expect(repository.create).toHaveBeenCalledWith(favoriteData);
       expect(repository.save).toHaveBeenCalledWith(mockFavorite);
       expect(result).toEqual(mockFavorite);
     });
 
     it('deve lançar InternalServerErrorException se save falhar', async () => {
-      // Arrange
+      
       repository.save.mockRejectedValue(new Error('DB Error'));
 
-      // Act & Assert
-      // A chamada ao método `create` agora precisa de ambos os argumentos
+      
+      
       await expect(service.create(createDto, mockUserId)).rejects.toThrow(
         InternalServerErrorException,
       );
     });
   });
 
-  // --- O restante dos testes permanece o mesmo ---
+  
   describe('findAll', () => {
     it('deve retornar os favoritos de um usuário', async () => {
       mockIsUUID.mockReturnValue(true);
