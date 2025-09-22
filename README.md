@@ -49,13 +49,22 @@ Optou-se por utilizar **PostgreSQL** containerizado com **Docker** para simular 
   ```bash
   docker compose up --build
   ```
-  O compose docker já ira configurar o banco de dados e a aplicação sem a necessidade de comando como pnpm `run start` para inciar o projeto
+  O compose docker já ira configurar o banco de dados e a aplicação sem a necessidade de comando como `pnpm run start` para inciar o projeto
 
 ## Rodando os testes
+Como a aplicação está rodando dentro da imagem docker é necessário utilizar os seguintes comandos
 
 - Testes unitários:
   ```bash
-  pnpm run test
+  docker compose exec pnpm run test
+  ```
+  - Testes e2e:
+  ```bash
+  docker compose exec pnpm run test:e2e
+  ```
+  - Testes coverage:
+  ```bash
+  docker compose exec pnpm run test:cov
   ```
 
 ## Documentação dos Endpoints
@@ -65,6 +74,7 @@ Optou-se por utilizar **PostgreSQL** containerizado com **Docker** para simular 
 Pode acessar http://localhost:3000/api para acessar o ambinete do swagger
 
 - **Criar usuário**
+![alt text](image.png)
   ```bash
   curl -X POST http://localhost:3000/users -H "Content-Type: application/json" -d '{"name":"João","email":"joao@email.com", "password": "123456"}'
   ```
@@ -76,6 +86,7 @@ Pode acessar http://localhost:3000/api para acessar o ambinete do swagger
 ### Mídias
 
 - **Criar mídia**
+![alt text](image-1.png)
 
   ```bash
   curl -X POST http://localhost:3000/media \
@@ -97,6 +108,7 @@ Pode acessar http://localhost:3000/api para acessar o ambinete do swagger
 ### Favoritos
 
 - **Adicionar favorito**
+![alt text](image-2.png)
   ```bash
   curl -X POST http://localhost:3000/favorite/user-1 -H "Content-Type: application/json" -d '{"mediaId":"1"}'
   ```
@@ -106,3 +118,6 @@ Pode acessar http://localhost:3000/api para acessar o ambinete do swagger
   ```
 
 ---
+
+# Link do postman
+https://dark-shuttle-275551.postman.co/workspace/My-Workspace~384408c5-1684-41fd-8014-b67e7393c94f/collection/19409026-32d55bf9-c369-44d5-b353-436f69802d81?action=share&source=copy-link&creator=19409026
