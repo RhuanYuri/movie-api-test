@@ -2,12 +2,14 @@ import {
   Injectable,
   NotFoundException,
   InternalServerErrorException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Favorite } from './entities/favorite.entity';
 import { CreateFavoriteDto } from './dto/create-favorite.dto';
 import { UpdateFavoriteDto } from './dto/update-favorite.dto';
+import { isUUID } from 'class-validator';
 
 @Injectable()
 export class FavoriteService {
@@ -27,6 +29,9 @@ export class FavoriteService {
   }
 
   async findAll(userId: string): Promise<Favorite[]> {
+    if (!isUUID(userId)) {
+      throw new NotFoundException(`User com ID ${userId} não encontrado`);
+    }
     try {
       return await this.favoriteRepository.find({
         where: { userId },
@@ -41,18 +46,32 @@ export class FavoriteService {
   }
 
   async findOne(id: string, userId: string): Promise<Favorite> {
-    const favorite = await this.favoriteRepository.findOne({
-      where: { id, userId },
-      relations: ['user', 'media'],
-    });
+    try {
+      if (!isUUID(id)) {
+        throw new NotFoundException(`Favorito com ID ${id} não encontrado`);
+      }
+      if (!isUUID(userId)) {
+        throw new NotFoundException(`User com ID ${userId} não encontrado`);
+      }
+      const favorite = await this.favoriteRepository.findOne({
+        where: { id, userId },
+        relations: ['user', 'media'],
+      });
 
-    if (!favorite) {
-      throw new NotFoundException(
-        `Favorito com id ${id} para o usuário ${userId} não encontrado`,
-      );
+      if (!favorite) {
+        throw new NotFoundException(
+          `Favorito com id ${id} para o usuário ${userId} não encontrado`,
+        );
+      }
+
+      return favorite;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Erro ao favorito');
     }
-
-    return favorite;
   }
 
   async update(
@@ -60,6 +79,12 @@ export class FavoriteService {
     userId: string,
     updateFavoriteDto: UpdateFavoriteDto,
   ): Promise<Favorite> {
+    if (!isUUID(id)) {
+      throw new NotFoundException(`Favorito com ID ${id} não encontrado`);
+    }
+    if (!isUUID(userId)) {
+      throw new NotFoundException(`User com ID ${userId} não encontrado`);
+    }
     const favorite = await this.findOne(id, userId);
     Object.assign(favorite, updateFavoriteDto);
 
@@ -72,7 +97,16 @@ export class FavoriteService {
   }
 
   async remove(id: string, userId: string): Promise<void> {
+    if (!isUUID(id)) {
+      throw new BadRequestException('ID do favorito inválido');
+    }
+    if (!isUUID(userId)) {
+      throw new BadRequestException('ID do  inválido');
+    }
     const favorite = await this.findOne(id, userId);
+    if (!favorite) {
+      throw new NotFoundException(`Mídia com id ${id} não encontrada`);
+    }
 
     try {
       await this.favoriteRepository.remove(favorite);
