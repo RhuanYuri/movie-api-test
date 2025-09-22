@@ -37,14 +37,19 @@ export class MediaService {
   }
 
   async findOne(id: string): Promise<Media> {
-    if (!isUUID(id)) {
-      throw new NotFoundException(`Midia com ID ${id} não encontrado`);
+    try {
+      const media = await this.mediaRepository.findOne({ where: { id } });
+      if (!media) {
+        throw new NotFoundException(`Mídia com id ${id} não encontrada`);
+      }
+      return media;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Erro ao buscar mídia');
     }
-    const media = await this.mediaRepository.findOne({ where: { id } });
-    if (!media) {
-      throw new NotFoundException(`Mídia com id ${id} não encontrada`);
-    }
-    return media;
   }
 
   async update(id: string, updateMediaDto: UpdateMediaDto): Promise<Media> {
