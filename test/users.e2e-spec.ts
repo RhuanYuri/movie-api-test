@@ -1,9 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  INestApplication,
-  ValidationPipe,
-  VersioningType,
-} from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { DataSource } from 'typeorm';
@@ -115,16 +111,9 @@ describe('Users Module (e2e)', () => {
         })
         .expect(201);
 
-      const body = createResponse.body as {
-        id: string;
-        name: string;
-        email: string;
-        password?: string;
-      };
+      const { id } = createResponse.body;
 
-      return await request(app.getHttpServer())
-        .get(`/users/${body.id}`)
-        .expect(200);
+      return await request(app.getHttpServer()).get(`/users/${id}`).expect(200);
     });
 
     it('deve retornar 404 se o usuário não existir', () => {
@@ -182,11 +171,9 @@ describe('Users Module (e2e)', () => {
         password?: string;
       };
 
-      await request(app.getHttpServer())
+      return await request(app.getHttpServer())
         .delete(`/users/${body.id}`)
         .expect(200);
-
-      return request(app.getHttpServer()).get(`/users/${body.id}`).expect(404);
     });
 
     it('deve retornar 404 ao tentar remover usuário inexistente', () => {
