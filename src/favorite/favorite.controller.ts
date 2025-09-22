@@ -30,8 +30,7 @@ export class FavoriteController {
     @Param('userId') userId: string,
     @Body() createFavoriteDto: CreateFavoriteDto,
   ) {
-    createFavoriteDto.userId = userId;
-    return this.favoriteService.create(createFavoriteDto);
+    return this.favoriteService.create(createFavoriteDto, userId);
   }
 
   @Get()
