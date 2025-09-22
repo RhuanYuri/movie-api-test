@@ -18,9 +18,9 @@ export class FavoriteService {
     private readonly favoriteRepository: Repository<Favorite>,
   ) {}
 
-  async create(createFavoriteDto: CreateFavoriteDto): Promise<Favorite> {
+  async create(createFavoriteDto: CreateFavoriteDto, userId): Promise<Favorite> {
     try {
-      const favorite = this.favoriteRepository.create(createFavoriteDto);
+      const favorite = this.favoriteRepository.create({...createFavoriteDto, userId: userId});
       return await this.favoriteRepository.save(favorite);
     } catch (error) {
       console.error('Error creating favorite:', error);
@@ -46,13 +46,13 @@ export class FavoriteService {
   }
 
   async findOne(id: string, userId: string): Promise<Favorite> {
+    if (!isUUID(id)) {
+      throw new NotFoundException(`Favorito com ID ${id} não encontrado`);
+    }
+    if (!isUUID(userId)) {
+      throw new NotFoundException(`User com ID ${userId} não encontrado`);
+    }
     try {
-      if (!isUUID(id)) {
-        throw new NotFoundException(`Favorito com ID ${id} não encontrado`);
-      }
-      if (!isUUID(userId)) {
-        throw new NotFoundException(`User com ID ${userId} não encontrado`);
-      }
       const favorite = await this.favoriteRepository.findOne({
         where: { id, userId },
         relations: ['user', 'media'],
@@ -98,14 +98,14 @@ export class FavoriteService {
 
   async remove(id: string, userId: string): Promise<void> {
     if (!isUUID(id)) {
-      throw new BadRequestException('ID do favorito inválido');
+      throw new NotFoundException('ID do favorito com formato inválido');
     }
     if (!isUUID(userId)) {
-      throw new BadRequestException('ID do  inválido');
+      throw new NotFoundException('ID do favorito com formato inválido');
     }
     const favorite = await this.findOne(id, userId);
     if (!favorite) {
-      throw new NotFoundException(`Mídia com id ${id} não encontrada`);
+      throw new NotFoundException(`Favorito com id ${id} não encontrada`);
     }
 
     try {
