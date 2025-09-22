@@ -1,28 +1,38 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { randomUUID as uuidv4 } from 'node:crypto';
+import { isUUID } from 'class-validator';
 import { MediaService } from './media.service';
 import { Media } from './entities/media.entity';
 import {
   NotFoundException,
   InternalServerErrorException,
 } from '@nestjs/common';
+import { CreateMediaDto } from './dto/create-media.dto';
+import { UpdateMediaDto } from './dto/update-media.dto';
 
-const mockMedia: Media = {
-  id: '4e3cb6de-828d-4faf-9a1f-a80b6a06fbr3',
-  title: 'Matrix',
-  description: 'Filme de ação futurista',
-  type: 'movie',
-  releaseYear: 1999,
-  genre: 'action',
-  createdAt: new Date(),
-  updatedAt: new Date(),
-  favorites: [],
-};
+jest.mock('class-validator', () => ({
+  ...jest.requireActual('class-validator'),
+  isUUID: jest.fn(),
+}));
 
 describe('MediaService', () => {
   let service: MediaService;
   let repository: jest.Mocked<Repository<Media>>;
+  const mockIsUUID = isUUID as jest.Mock;
+
+  const mockMedia: Media = {
+    id: uuidv4(),
+    title: 'Matrix',
+    description: 'Filme de ficção científica',
+    type: 'movie',
+    releaseYear: 1999,
+    genre: 'sci-fi',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    favorites: [],
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -45,55 +55,50 @@ describe('MediaService', () => {
     repository = module.get(getRepositoryToken(Media));
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
   describe('create', () => {
-    it('deve criar e salvar uma mídia', async () => {
+    it('deve criar uma mídia com sucesso', async () => {
+      const createDto: CreateMediaDto = {
+        title: mockMedia.title,
+        type: mockMedia.type,
+        releaseYear: mockMedia.releaseYear,
+        genre: mockMedia.genre,
+      };
       repository.create.mockReturnValue(mockMedia);
       repository.save.mockResolvedValue(mockMedia);
 
-      const dto = {
-        title: 'Matrix',
-        description: 'Filme de ação futurista',
-        type: 'movie' as const,
-        releaseYear: 1999,
-        genre: 'action',
-      };
+      const result = await service.create(createDto);
 
-      const result = await service.create(dto);
-
-      expect(repository.create).toHaveBeenCalledWith(dto);
+      expect(repository.create).toHaveBeenCalledWith(createDto);
       expect(repository.save).toHaveBeenCalledWith(mockMedia);
       expect(result).toEqual(mockMedia);
     });
 
-    it('deve lançar InternalServerErrorException em erro no save', async () => {
-      repository.create.mockReturnValue(mockMedia);
-      repository.save.mockRejectedValue(new Error('DB error'));
-
-      const dto = {
-        title: 'Matrix',
-        releaseYear: 1999,
-        genre: 'action',
-      };
-
-      await expect(service.create(dto)).rejects.toThrow(
+    it('deve lançar InternalServerErrorException se o save falhar', async () => {
+      repository.save.mockRejectedValue(new Error('Database error'));
+      await expect(service.create({} as CreateMediaDto)).rejects.toThrow(
         InternalServerErrorException,
       );
     });
   });
 
   describe('findAll', () => {
-    it('deve retornar todas as mídias', async () => {
+    it('deve retornar uma lista de mídias', async () => {
       repository.find.mockResolvedValue([mockMedia]);
-
       const result = await service.findAll();
-
-      expect(repository.find).toHaveBeenCalled();
       expect(result).toEqual([mockMedia]);
+      expect(repository.find).toHaveBeenCalled();
     });
 
-    it('deve lançar InternalServerErrorException em erro no find', async () => {
-      repository.find.mockRejectedValue(new Error('DB error'));
-
+    it('deve lançar InternalServerErrorException se o find falhar', async () => {
+      repository.find.mockRejectedValue(new Error('Database error'));
       await expect(service.findAll()).rejects.toThrow(
         InternalServerErrorException,
       );
@@ -101,58 +106,86 @@ describe('MediaService', () => {
   });
 
   describe('findOne', () => {
-    it('deve retornar uma mídia pelo id', async () => {
+    it('deve retornar uma mídia se encontrada', async () => {
+      mockIsUUID.mockReturnValue(true);
       repository.findOne.mockResolvedValue(mockMedia);
-
-      const result = await service.findOne('1');
-
-      expect(repository.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
+      const result = await service.findOne(mockMedia.id);
       expect(result).toEqual(mockMedia);
     });
 
-    it('deve lançar NotFoundException se não encontrar', async () => {
-      repository.findOne.mockResolvedValue(null);
+    it('deve lançar NotFoundException se o ID não for um UUID', async () => {
+      mockIsUUID.mockReturnValue(false);
+      await expect(service.findOne('invalid-id')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
 
-      await expect(service.findOne('2')).rejects.toThrow(NotFoundException);
+    it('deve lançar NotFoundException se a mídia não for encontrada', async () => {
+      mockIsUUID.mockReturnValue(true);
+      repository.findOne.mockResolvedValue(null);
+      await expect(service.findOne(mockMedia.id)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   describe('update', () => {
-    it('deve atualizar uma mídia existente', async () => {
-      repository.findOne.mockResolvedValue(mockMedia);
-      repository.save.mockResolvedValue({ ...mockMedia, title: 'Novo título' });
+    const updateDto: UpdateMediaDto = { title: 'Matrix Reloaded' };
 
-      const result = await service.update('1', { title: 'Novo título' });
+    it('deve atualizar uma mídia com sucesso', async () => {
+      const updatedMedia = { ...mockMedia, ...updateDto };
+      mockIsUUID.mockReturnValue(true);
+      jest.spyOn(service, 'findOne').mockResolvedValue(mockMedia);
+      repository.save.mockResolvedValue(updatedMedia);
 
-      expect(result.title).toBe('Novo título');
+      const result = await service.update(mockMedia.id, updateDto);
+
+      expect(service.findOne).toHaveBeenCalledWith(mockMedia.id);
+      expect(repository.save).toHaveBeenCalledWith(
+        expect.objectContaining(updateDto),
+      );
+      expect(result.title).toBe(updateDto.title);
     });
 
-    it('deve lançar erro se save falhar', async () => {
-      repository.findOne.mockResolvedValue(mockMedia);
-      repository.save.mockRejectedValue(new Error('DB error'));
+    it('deve lançar NotFoundException se o ID não for um UUID', async () => {
+      mockIsUUID.mockReturnValue(false);
+      await expect(service.update('invalid-id', updateDto)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
 
-      await expect(service.update('1', { title: 'Falha' })).rejects.toThrow(
-        InternalServerErrorException,
+    it('deve lançar NotFoundException se a mídia a ser atualizada não for encontrada', async () => {
+      mockIsUUID.mockReturnValue(true);
+      jest.spyOn(service, 'findOne').mockRejectedValue(new NotFoundException());
+      await expect(service.update(mockMedia.id, updateDto)).rejects.toThrow(
+        NotFoundException,
       );
     });
   });
 
   describe('remove', () => {
-    it('deve remover uma mídia', async () => {
-      repository.findOne.mockResolvedValue(mockMedia);
-      repository.remove.mockResolvedValue(mockMedia);
+    it('deve remover uma mídia com sucesso', async () => {
+      mockIsUUID.mockReturnValue(true);
+      jest.spyOn(service, 'findOne').mockResolvedValue(mockMedia);
+      repository.remove.mockResolvedValue(undefined as any);
 
-      await service.remove('1');
-
+      await expect(service.remove(mockMedia.id)).resolves.toBeUndefined();
+      expect(service.findOne).toHaveBeenCalledWith(mockMedia.id);
       expect(repository.remove).toHaveBeenCalledWith(mockMedia);
     });
 
-    it('deve lançar erro se remove falhar', async () => {
-      repository.findOne.mockResolvedValue(mockMedia);
-      repository.remove.mockRejectedValue(new Error('DB error'));
+    it('deve lançar NotFoundException se o ID não for um UUID', async () => {
+      mockIsUUID.mockReturnValue(false);
+      await expect(service.remove('invalid-id')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
 
-      await expect(service.remove('1')).rejects.toThrow(
-        InternalServerErrorException,
+    it('deve lançar NotFoundException se a mídia a ser removida não for encontrada', async () => {
+      mockIsUUID.mockReturnValue(true);
+      jest.spyOn(service, 'findOne').mockRejectedValue(new NotFoundException());
+      await expect(service.remove(mockMedia.id)).rejects.toThrow(
+        NotFoundException,
       );
     });
   });
