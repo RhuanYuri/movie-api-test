@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, VersioningType } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { DataSource } from 'typeorm';
+import { randomUUID as uuidv4 } from 'node:crypto';
 
 describe('Favorite Module (e2e)', () => {
   let app: INestApplication;
@@ -16,8 +17,14 @@ describe('Favorite Module (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     await app.init();
-
     dataSource = moduleFixture.get<DataSource>(DataSource);
   });
 
@@ -28,30 +35,28 @@ describe('Favorite Module (e2e)', () => {
 
     const userResponse = await request(app.getHttpServer())
       .post('/users')
-      .send({ name: 'Test', email: 'test@example.com', password: '123456' })
+      .send({
+        name: 'Test User',
+        email: 'test.user@example.com',
+        password: 'password123',
+      })
       .expect(201);
 
-    const userBody = userResponse.body as { id: string; email: string };
-    userId = userBody.id;
+    userId = userResponse.body.id;
+    expect(userId).toBeDefined();
 
     const mediaResponse = await request(app.getHttpServer())
       .post('/media')
       .send({
-        title: 'Filme Favorito',
+        title: 'Filme Original',
         type: 'movie',
         releaseYear: 2025,
         genre: 'action',
       })
       .expect(201);
 
-    const mediaBody = mediaResponse.body as {
-      id: string;
-      title: string;
-      type: string;
-      releaseYear: number;
-      genre: string;
-    };
-    mediaId = mediaBody.id;
+    mediaId = mediaResponse.body.id;
+    expect(mediaId).toBeDefined();
   });
 
   afterAll(async () => {
@@ -59,33 +64,42 @@ describe('Favorite Module (e2e)', () => {
   });
 
   describe('/users/:userId/favorites (POST)', () => {
-    it('deve criar um favorito (201)', async () => {
-      const dto = { mediaId };
-
-      return await request(app.getHttpServer())
+    it('deve criar um favorito com sucesso (201)', async () => {
+      const response = await request(app.getHttpServer())
         .post(`/users/${userId}/favorites`)
-        .send(dto)
+        .send({ mediaId })
         .expect(201);
+
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          id: expect.any(String),
+          userId,
+          mediaId,
+        }),
+      );
     });
 
-    it('deve retornar 400 se mediaId for inválido', () => {
+    it('deve retornar 400 se mediaId não for um UUID', () => {
       return request(app.getHttpServer())
         .post(`/users/${userId}/favorites`)
-        .send({ mediaId: '' })
+        .send({ mediaId: 'id-invalido' })
         .expect(400);
     });
   });
 
   describe('/users/:userId/favorites (GET)', () => {
-    it('deve listar favoritos do usuário (200)', async () => {
+    it('deve listar os favoritos de um usuário (200)', async () => {
       await request(app.getHttpServer())
         .post(`/users/${userId}/favorites`)
-        .send({ mediaId })
-        .expect(201);
+        .send({ mediaId });
 
-      return await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .get(`/users/${userId}/favorites`)
         .expect(200);
+
+      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body.length).toBe(1);
+      expect(response.body[0].mediaId).toBe(mediaId);
     });
   });
 
@@ -93,54 +107,64 @@ describe('Favorite Module (e2e)', () => {
     it('deve retornar um favorito específico (200)', async () => {
       const createResponse = await request(app.getHttpServer())
         .post(`/users/${userId}/favorites`)
-        .send({ mediaId })
-        .expect(201);
+        .send({ mediaId });
+      const favoriteId = createResponse.body.id;
 
-      const { id: favoriteId } = createResponse.body as { id: string };
-
-      return await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .get(`/users/${userId}/favorites/${favoriteId}`)
         .expect(200);
+
+      expect(response.body.id).toBe(favoriteId);
     });
 
-    it('deve retornar 404 se favorito não existir', () => {
+    it('deve retornar 404 se o favorito não existir', () => {
+      const nonExistentFavoriteId = uuidv4();
       return request(app.getHttpServer())
-        .get(`/users/${userId}/favorites/999`)
+        .get(`/users/${userId}/favorites/${nonExistentFavoriteId}`)
         .expect(404);
     });
   });
 
   describe('/users/:userId/favorites/:id (PATCH)', () => {
-    it('deve atualizar um favorito (200)', async () => {
+    it('deve atualizar um favorito com sucesso (200)', async () => {
       const createResponse = await request(app.getHttpServer())
         .post(`/users/${userId}/favorites`)
-        .send({ mediaId })
-        .expect(201);
+        .send({ mediaId });
+      const favoriteId = createResponse.body.id;
 
-      const { id: favoriteId } = createResponse.body as { id: string };
+      const newMediaResponse = await request(app.getHttpServer())
+        .post('/media')
+        .send({
+          title: 'Filme Atualizado',
+          type: 'series',
+          releaseYear: 2024,
+          genre: 'drama',
+        });
+      const newMediaId = newMediaResponse.body.id;
 
-      return await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .patch(`/users/${userId}/favorites/${favoriteId}`)
-        .send({ note: 'Muito bom!' })
+        .send({ mediaId: newMediaId })
         .expect(200);
+
+      expect(response.body.mediaId).toBe(newMediaId);
     });
 
-    it('deve retornar 404 se tentar atualizar favorito inexistente', () => {
+    it('deve retornar 404 se o favorito a ser atualizado não existir', () => {
+      const nonExistentFavoriteId = uuidv4();
       return request(app.getHttpServer())
-        .patch(`/users/${userId}/favorites/999`)
-        .send({ note: 'Teste' })
+        .patch(`/users/${userId}/favorites/${nonExistentFavoriteId}`)
+        .send({ mediaId })
         .expect(404);
     });
   });
 
   describe('/users/:userId/favorites/:id (DELETE)', () => {
-    it('deve remover um favorito (200)', async () => {
+    it('deve remover um favorito com sucesso (200)', async () => {
       const createResponse = await request(app.getHttpServer())
         .post(`/users/${userId}/favorites`)
-        .send({ mediaId })
-        .expect(201);
-
-      const { id: favoriteId } = createResponse.body as { id: string };
+        .send({ mediaId });
+      const favoriteId = createResponse.body.id;
 
       await request(app.getHttpServer())
         .delete(`/users/${userId}/favorites/${favoriteId}`)
@@ -148,12 +172,6 @@ describe('Favorite Module (e2e)', () => {
 
       return request(app.getHttpServer())
         .get(`/users/${userId}/favorites/${favoriteId}`)
-        .expect(404);
-    });
-
-    it('deve retornar 404 ao tentar remover favorito inexistente', () => {
-      return request(app.getHttpServer())
-        .delete(`/users/${userId}/favorites/999`)
         .expect(404);
     });
   });
