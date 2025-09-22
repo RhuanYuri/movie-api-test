@@ -37,6 +37,9 @@ export class MediaService {
   }
 
   async findOne(id: string): Promise<Media> {
+    if (!isUUID(id)) {
+      throw new NotFoundException(`Midia com ID ${id} não encontrado`);
+    }
     try {
       const media = await this.mediaRepository.findOne({ where: { id } });
       if (!media) {
