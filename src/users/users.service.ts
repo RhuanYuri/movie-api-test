@@ -65,6 +65,11 @@ export class UsersService {
     if (!isUUID(id)) {
       throw new NotFoundException(`Usuário com ID ${id} não encontrado`);
     }
+    const user = await this.userRepository.findOne({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException(`Usuário com ID ${id} não encontrado`);
+    }
     const result = await this.userRepository.delete(id);
     if (result.affected === 0) {
       throw new NotFoundException(`User with id "${id}" not found`);
