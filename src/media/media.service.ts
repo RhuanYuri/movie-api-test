@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { Media } from './entities/media.entity';
 import { CreateMediaDto } from './dto/create-media.dto';
 import { UpdateMediaDto } from './dto/update-media.dto';
+import { isUUID } from 'class-validator';
 
 @Injectable()
 export class MediaService {
@@ -36,6 +37,9 @@ export class MediaService {
   }
 
   async findOne(id: string): Promise<Media> {
+    if (!isUUID(id)) {
+      throw new NotFoundException(`Midia com ID ${id} não encontrado`);
+    }
     const media = await this.mediaRepository.findOne({ where: { id } });
     if (!media) {
       throw new NotFoundException(`Mídia com id ${id} não encontrada`);
@@ -44,7 +48,13 @@ export class MediaService {
   }
 
   async update(id: string, updateMediaDto: UpdateMediaDto): Promise<Media> {
+    if (!isUUID(id)) {
+      throw new NotFoundException(`Midia com ID ${id} não encontrado`);
+    }
     const media = await this.findOne(id);
+    if (!media) {
+      throw new NotFoundException(`Mídia com id ${id} não encontrada`);
+    }
     Object.assign(media, updateMediaDto);
     try {
       return await this.mediaRepository.save(media);
@@ -55,7 +65,13 @@ export class MediaService {
   }
 
   async remove(id: string): Promise<void> {
+    if (!isUUID(id)) {
+      throw new NotFoundException(`Midia com ID ${id} não encontrado`);
+    }
     const media = await this.findOne(id);
+    if (!media) {
+      throw new NotFoundException(`Mídia com id ${id} não encontrada`);
+    }
     try {
       await this.mediaRepository.remove(media);
     } catch (error) {
